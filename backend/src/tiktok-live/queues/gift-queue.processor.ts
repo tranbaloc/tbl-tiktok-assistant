@@ -5,35 +5,49 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { LiveSession } from '../entities/live-session.entity';
 import { LiveUser } from '../entities/live-user.entity';
-import { LiveChatMessage } from '../entities/live-chat-message.entity';
+import { LiveGift } from '../entities/live-gift.entity';
 
-export interface ChatMessageJobData {
+export interface GiftJobData {
   roomId: string;
   username: string;
   userUniqueId?: string;
   userNickname?: string;
   userAvatarUrl?: string;
-  message: string;
+  giftName: string;
+  giftId: number;
+  coinValue: number;
+  count: number;
   sentAt: Date;
 }
 
-@Processor('chat-messages')
-export class ChatQueueProcessor extends WorkerHost {
-  private readonly logger = new Logger(ChatQueueProcessor.name);
+@Processor('gift-messages')
+export class GiftQueueProcessor extends WorkerHost {
+  private readonly logger = new Logger(GiftQueueProcessor.name);
 
   constructor(
     @InjectRepository(LiveSession)
     private readonly sessionRepo: Repository<LiveSession>,
     @InjectRepository(LiveUser)
     private readonly userRepo: Repository<LiveUser>,
-    @InjectRepository(LiveChatMessage)
-    private readonly chatRepo: Repository<LiveChatMessage>,
+    @InjectRepository(LiveGift)
+    private readonly giftRepo: Repository<LiveGift>,
   ) {
     super();
   }
 
-  async process(job: Job<ChatMessageJobData>): Promise<void> {
-    const { roomId, username, userUniqueId, userNickname, userAvatarUrl, message, sentAt } = job.data;
+  async process(job: Job<GiftJobData>): Promise<void> {
+    const {
+      roomId,
+      username,
+      userUniqueId,
+      userNickname,
+      userAvatarUrl,
+      giftName,
+      giftId,
+      coinValue,
+      count,
+      sentAt,
+    } = job.data;
 
     try {
       // Ensure session exists
@@ -71,19 +85,22 @@ export class ChatQueueProcessor extends WorkerHost {
         user = await this.userRepo.save(user);
       }
 
-      // Create and save chat message
-      const chat = this.chatRepo.create({
+      // Create and save gift
+      const gift = this.giftRepo.create({
         session,
         user,
         hostUsername: session.hostUsername,
-        message,
+        giftName,
+        giftId,
+        coinValue,
+        count,
         sentAt,
       });
 
-      await this.chatRepo.save(chat);
+      await this.giftRepo.save(gift);
     } catch (error) {
       this.logger.error(
-        `[${username}][CHAT] Failed to process chat message job ${job.id}: ${error instanceof Error ? error.message : String(error)}`,
+        `[${username}][GIFT] Failed to process gift job ${job.id}: ${error instanceof Error ? error.message : String(error)}`,
         error instanceof Error ? error.stack : undefined,
       );
       throw error; // Re-throw to retry job

@@ -4,6 +4,7 @@ import { TiktokLiveManagerService } from './tiktok-live.service';
 import { LiveSession } from './entities/live-session.entity';
 import { LiveChatMessage } from './entities/live-chat-message.entity';
 import { LiveChannel } from './entities/live-channel.entity';
+import { LiveGift } from './entities/live-gift.entity';
 
 class ConnectRequestDto {
   username?: string;
@@ -58,6 +59,24 @@ export class TiktokLiveController {
   })
   getSessionChats(@Param('id') id: string) {
     return this.tiktokLiveService.getSessionChats(id);
+  }
+
+  @Get('sessions/:id/gifts')
+  @ApiOkResponse({
+    description: 'Gifts for a live session',
+    type: [LiveGift],
+  })
+  getSessionGifts(@Param('id') id: string) {
+    return this.tiktokLiveService.getSessionGifts(id);
+  }
+
+  @Get('gifts')
+  @ApiOkResponse({
+    description: 'List of all gifts',
+    type: [LiveGift],
+  })
+  getGifts() {
+    return this.tiktokLiveService.getGifts();
   }
 
   @Get('channels')

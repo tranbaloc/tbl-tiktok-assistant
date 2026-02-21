@@ -2,17 +2,17 @@ import { Column, Entity, Index, ManyToOne, PrimaryGeneratedColumn } from 'typeor
 import { LiveSession } from './live-session.entity';
 import { LiveUser } from './live-user.entity';
 
-@Entity({ name: 'live_chat_message' })
-export class LiveChatMessage {
+@Entity({ name: 'live_gift' })
+export class LiveGift {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @ManyToOne(() => LiveSession, (session) => session.messages, {
+  @ManyToOne(() => LiveSession, (session) => session.gifts, {
     onDelete: 'CASCADE',
   })
   session: LiveSession;
 
-  @ManyToOne(() => LiveUser, (user) => user.messages, {
+  @ManyToOne(() => LiveUser, (user) => user.gifts, {
     onDelete: 'SET NULL',
     nullable: true,
   })
@@ -22,8 +22,17 @@ export class LiveChatMessage {
   @Index()
   hostUsername: string | null;
 
-  @Column({ type: 'text' })
-  message: string;
+  @Column({ type: 'varchar' })
+  giftName: string;
+
+  @Column({ type: 'bigint' })
+  giftId: number;
+
+  @Column({ type: 'bigint' })
+  coinValue: number;
+
+  @Column({ type: 'int', default: 1 })
+  count: number;
 
   @Column({ type: 'timestamp with time zone' })
   sentAt: Date;

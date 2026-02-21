@@ -5,6 +5,7 @@ import { LiveSession } from '../tiktok-live/entities/live-session.entity';
 import { LiveUser } from '../tiktok-live/entities/live-user.entity';
 import { LiveChatMessage } from '../tiktok-live/entities/live-chat-message.entity';
 import { LiveChannel } from '../tiktok-live/entities/live-channel.entity';
+import { LiveGift } from '../tiktok-live/entities/live-gift.entity';
 
 @Module({
   imports: [
@@ -17,7 +18,7 @@ import { LiveChannel } from '../tiktok-live/entities/live-channel.entity';
         username: configService.get<string>('DB_USERNAME', 'postgres'),
         password: configService.get<string>('DB_PASSWORD', ''),
         database: configService.get<string>('DB_DATABASE', 'TBLTiktok'),
-        entities: [LiveSession, LiveUser, LiveChatMessage, LiveChannel],
+        entities: [LiveSession, LiveUser, LiveChatMessage, LiveChannel, LiveGift],
         synchronize: configService.get<string>('DB_SYNCHRONIZE', 'true') === 'true',
       }),
       inject: [ConfigService],
