@@ -1,0 +1,27 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-black text-white;
+  }
+}
+
+@layer components {
+  /* Global button styles */
+  button.btn-primary,
+  button[type="submit"]:not(.no-primary-style) {
+    @apply bg-primary-green-50 text-black font-medium rounded-lg transition-colors duration-200 shadow-lg hover:shadow-xl;
+  }
+  
+  button.btn-primary:hover,
+  button[type="submit"]:not(.no-primary-style):hover:not(:disabled) {
+    @apply bg-primary-green-200;
+  }
+  
+  button.btn-primary:disabled,
+  button[type="submit"]:not(.no-primary-style):disabled {
+    @apply opacity-50 cursor-not-allowed;
+  }
+}
