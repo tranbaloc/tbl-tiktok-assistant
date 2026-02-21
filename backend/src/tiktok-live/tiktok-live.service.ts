@@ -16,11 +16,13 @@ import { LiveChatMessage } from './entities/live-chat-message.entity';
 import { LiveSession } from './entities/live-session.entity';
 import { LiveUser } from './entities/live-user.entity';
 import { LiveChannel } from './entities/live-channel.entity';
+import { LiveGift } from './entities/live-gift.entity';
 import {
   TiktokLiveWorker,
   type TiktokWorkerStatus,
 } from './tiktok-live.worker';
 import type { ChatMessageJobData } from './queues/chat-queue.processor';
+import type { GiftJobData } from './queues/gift-queue.processor';
 
 @Injectable()
 export class TiktokLiveManagerService implements OnModuleInit, OnModuleDestroy {
@@ -37,15 +39,20 @@ export class TiktokLiveManagerService implements OnModuleInit, OnModuleDestroy {
     private readonly chatRepo: Repository<LiveChatMessage>,
     @InjectRepository(LiveChannel)
     private readonly channelRepo: Repository<LiveChannel>,
+    @InjectRepository(LiveGift)
+    private readonly giftRepo: Repository<LiveGift>,
     @Inject(REDIS_CLIENT)
     private readonly redis: Redis,
     @InjectQueue('chat-messages')
     private readonly chatQueue: Queue<ChatMessageJobData>,
+    @InjectQueue('gift-messages')
+    private readonly giftQueue: Queue<GiftJobData>,
   ) {}
 
   async onModuleInit() {
     await this.seedDefaultChannels();
     await this.checkAndDisableExpiredChannels();
+    await this.backfillHostUsername();
     await this.bootstrapChannels();
   }
 
@@ -133,6 +140,7 @@ export class TiktokLiveManagerService implements OnModuleInit, OnModuleDestroy {
         this.channelRepo,
         channel.id,
         this.chatQueue,
+        this.giftQueue,
         this.logger,
       );
 
@@ -197,6 +205,7 @@ export class TiktokLiveManagerService implements OnModuleInit, OnModuleDestroy {
       this.channelRepo,
       channel.id,
       this.chatQueue,
+      this.giftQueue,
       this.logger,
     );
 
@@ -256,6 +265,86 @@ export class TiktokLiveManagerService implements OnModuleInit, OnModuleDestroy {
     return this.channelRepo.find({
       order: { username: 'ASC' },
     });
+  }
+
+  async getSessionGifts(sessionId: string): Promise<LiveGift[]> {
+    return this.giftRepo.find({
+      where: { session: { id: sessionId } },
+      relations: ['user'],
+      order: { sentAt: 'ASC' },
+    });
+  }
+
+  async getGifts(): Promise<LiveGift[]> {
+    return this.giftRepo.find({
+      relations: ['session', 'user'],
+      order: { sentAt: 'DESC' },
+    });
+  }
+
+  async getChatsByHostUsername(hostUsername: string): Promise<LiveChatMessage[]> {
+    return this.chatRepo.find({
+      where: { hostUsername },
+      relations: ['user'],
+      order: { sentAt: 'ASC' },
+    });
+  }
+
+  async getGiftsByHostUsername(hostUsername: string): Promise<LiveGift[]> {
+    return this.giftRepo.find({
+      where: { hostUsername },
+      relations: ['user'],
+      order: { sentAt: 'ASC' },
+    });
+  }
+
+  private async backfillHostUsername(): Promise<void> {
+    try {
+      // Backfill hostUsername for chat messages
+      const chatMessagesWithoutHost = await this.chatRepo
+        .createQueryBuilder('chat')
+        .leftJoin('chat.session', 'session')
+        .where('chat.hostUsername IS NULL')
+        .getMany();
+
+      if (chatMessagesWithoutHost.length > 0) {
+        this.logger.log(
+          `Backfilling hostUsername for ${chatMessagesWithoutHost.length} chat messages`,
+        );
+        for (const chat of chatMessagesWithoutHost) {
+          if (chat.session) {
+            chat.hostUsername = chat.session.hostUsername;
+            await this.chatRepo.save(chat);
+          }
+        }
+        this.logger.log('Completed backfilling hostUsername for chat messages');
+      }
+
+      // Backfill hostUsername for gifts
+      const giftsWithoutHost = await this.giftRepo
+        .createQueryBuilder('gift')
+        .leftJoin('gift.session', 'session')
+        .where('gift.hostUsername IS NULL')
+        .getMany();
+
+      if (giftsWithoutHost.length > 0) {
+        this.logger.log(
+          `Backfilling hostUsername for ${giftsWithoutHost.length} gifts`,
+        );
+        for (const gift of giftsWithoutHost) {
+          if (gift.session) {
+            gift.hostUsername = gift.session.hostUsername;
+            await this.giftRepo.save(gift);
+          }
+        }
+        this.logger.log('Completed backfilling hostUsername for gifts');
+      }
+    } catch (error) {
+      this.logger.warn(
+        `Failed to backfill hostUsername: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      // Don't throw - allow app to continue even if backfill fails
+    }
   }
 
   private normalizeUsername(username: string): string {

@@ -1,5 +1,6 @@
 import { Column, Entity, OneToMany, PrimaryColumn } from 'typeorm';
 import { LiveChatMessage } from './live-chat-message.entity';
+import { LiveGift } from './live-gift.entity';
 
 @Entity({ name: 'live_session' })
 export class LiveSession {
@@ -17,4 +18,7 @@ export class LiveSession {
 
   @OneToMany(() => LiveChatMessage, (message) => message.session)
   messages: LiveChatMessage[];
+
+  @OneToMany(() => LiveGift, (gift) => gift.session)
+  gifts: LiveGift[];
 }

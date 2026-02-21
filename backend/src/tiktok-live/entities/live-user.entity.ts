@@ -6,6 +6,7 @@ import {
   Unique,
 } from 'typeorm';
 import { LiveChatMessage } from './live-chat-message.entity';
+import { LiveGift } from './live-gift.entity';
 
 @Entity({ name: 'live_user' })
 @Unique(['uniqueId'])
@@ -24,4 +25,7 @@ export class LiveUser {
 
   @OneToMany(() => LiveChatMessage, (message) => message.user)
   messages: LiveChatMessage[];
+
+  @OneToMany(() => LiveGift, (gift) => gift.user)
+  gifts: LiveGift[];
 }

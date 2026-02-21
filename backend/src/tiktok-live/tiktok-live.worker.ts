@@ -10,11 +10,13 @@ import type Redis from 'ioredis';
 import type { Repository } from 'typeorm';
 import type { TikTokLiveConnectionState } from 'tiktok-live-connector/dist/types/events';
 import type { WebcastChatMessage } from 'tiktok-live-connector/dist/types/tiktok-schema';
+import type { WebcastGiftMessage } from 'tiktok-live-connector/dist/types/tiktok-schema';
 import { LiveSession } from './entities/live-session.entity';
 import { LiveUser } from './entities/live-user.entity';
 import { LiveChatMessage } from './entities/live-chat-message.entity';
 import { LiveChannel } from './entities/live-channel.entity';
 import type { ChatMessageJobData } from './queues/chat-queue.processor';
+import type { GiftJobData } from './queues/gift-queue.processor';
 
 export type TiktokWorkerStatus = {
   username: string;
@@ -44,6 +46,8 @@ export class TiktokLiveWorker {
     private readonly channelId: string,
     @InjectQueue('chat-messages')
     private readonly chatQueue: Queue<ChatMessageJobData>,
+    @InjectQueue('gift-messages')
+    private readonly giftQueue: Queue<GiftJobData>,
     parentLogger: Logger,
   ) {
     this.logger = parentLogger;
@@ -156,6 +160,10 @@ export class TiktokLiveWorker {
     this.connection.on(WebcastEvent.CHAT, (msg) => {
       void this.onChat(msg);
     });
+
+    this.connection.on(WebcastEvent.GIFT, (msg) => {
+      void this.onGift(msg);
+    });
   }
 
   private async onConnected(state: TikTokLiveConnectionState) {
@@ -228,7 +236,7 @@ export class TiktokLiveWorker {
     const message = msg.comment ?? '';
 
     // Log immediately for monitoring
-    this.logger.log(`[${this.username}] COMMENT from ${userId}: ${message}`);
+    this.logger.log(`[${this.username}][CHAT] ${userId}: ${message}`);
 
     // Add to queue for async processing
     try {
@@ -251,6 +259,59 @@ export class TiktokLiveWorker {
     } catch (error) {
       this.logger.error(
         `[${this.username}] Failed to add chat message to queue: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
+  private async onGift(msg: WebcastGiftMessage) {
+    const roomId = this.roomId ?? this.safeRoomId();
+    if (!roomId) {
+      this.logger.warn(
+        `[${this.username}] GIFT without roomId; skipped persist`,
+      );
+      return;
+    }
+
+    const uniqueId = msg.user?.uniqueId;
+    const userId = uniqueId ?? 'unknown';
+    const giftName = msg.giftDetails?.giftName ?? 'Unknown Gift';
+    const giftId = msg.giftId ?? 0;
+    const coinValue = msg.giftDetails?.diamondCount 
+      ? msg.giftDetails.diamondCount 
+      : msg.fanTicketCount 
+        ? Number(msg.fanTicketCount) 
+        : 0;
+    const count = msg.repeatCount ?? msg.repeatEnd ?? 1;
+
+    // Log immediately for monitoring
+    this.logger.log(
+      `[${this.username}][GIFT] ${userId}: ${count}x ${giftName} (${coinValue} coins)`,
+    );
+
+    // Add to queue for async processing
+    try {
+      await this.giftQueue.add(
+        'process-gift-message',
+        {
+          roomId,
+          username: this.username,
+          userUniqueId: uniqueId,
+          userNickname: msg.user?.nickname,
+          userAvatarUrl: msg.user?.profilePicture?.url?.[0],
+          giftName,
+          giftId,
+          coinValue,
+          count,
+          sentAt: new Date(),
+        },
+        {
+          priority: 1, // Normal priority
+          removeOnComplete: true,
+        },
+      );
+    } catch (error) {
+      this.logger.error(
+        `[${this.username}] Failed to add gift message to queue: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
   }
