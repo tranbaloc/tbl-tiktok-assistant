@@ -276,16 +276,17 @@ export class TiktokLiveWorker {
     const userId = uniqueId ?? 'unknown';
     const giftName = msg.giftDetails?.giftName ?? 'Unknown Gift';
     const giftId = msg.giftId ?? 0;
-    const coinValue = msg.giftDetails?.diamondCount 
-      ? msg.giftDetails.diamondCount 
-      : msg.fanTicketCount 
-        ? Number(msg.fanTicketCount) 
+    const unitCoinValue = msg.giftDetails?.diamondCount
+      ? msg.giftDetails.diamondCount
+      : msg.fanTicketCount
+        ? Number(msg.fanTicketCount)
         : 0;
     const count = msg.repeatCount ?? msg.repeatEnd ?? 1;
+    const totalCoinValue = unitCoinValue * count;
 
     // Log immediately for monitoring
     this.logger.log(
-      `[${this.username}][GIFT] ${userId}: ${count}x ${giftName} (${coinValue} coins)`,
+      `[${this.username}][GIFT] ${userId}: ${count}x ${giftName} (${totalCoinValue} coins)`,
     );
 
     // Add to queue for async processing
@@ -300,7 +301,7 @@ export class TiktokLiveWorker {
           userAvatarUrl: msg.user?.profilePicture?.url?.[0],
           giftName,
           giftId,
-          coinValue,
+          coinValue: totalCoinValue,
           count,
           sentAt: new Date(),
         },
